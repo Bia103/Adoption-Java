@@ -2,7 +2,10 @@ package com.example.javamicroservicii.controller;
 
 import com.example.javamicroservicii.config.PropertiesConfig;
 import com.example.javamicroservicii.model.Adoption;
+import com.example.javamicroservicii.model.Discount;
 import com.example.javamicroservicii.service.AdoptionService;
+import com.example.javamicroservicii.service.client.DiscountServiceProxy;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.Link;
@@ -18,12 +21,15 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 
 @RestController
+@Slf4j
 @RequestMapping("/adoption")
 public class AdoptionController {
     @Autowired
     private final AdoptionService adoptionService;
     @Autowired
     private PropertiesConfig configuration;
+    @Autowired
+    DiscountServiceProxy discountServiceProxy;
 
     @GetMapping("/newFromConfig")
     public Adoption getAdoption() {
@@ -65,6 +71,11 @@ public class AdoptionController {
     @GetMapping("/{adoptionId}")
     public Adoption getAdoption(@PathVariable Long adoptionId){
         Adoption adoption = adoptionService.findId(adoptionId);
+
+        Discount discount = discountServiceProxy.findDiscount();
+        log.info(discount.getVersion());
+        adoption.setPrice(adoption.getPrice() - discount.getPrice());
+
         return adoption;
     }
 
