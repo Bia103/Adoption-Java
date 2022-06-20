@@ -5,6 +5,8 @@ import com.example.javamicroservicii.model.Adoption;
 import com.example.javamicroservicii.model.Discount;
 import com.example.javamicroservicii.service.AdoptionService;
 import com.example.javamicroservicii.service.client.DiscountServiceProxy;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.swagger.annotations.Api;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.hateoas.CollectionModel;
@@ -23,6 +25,8 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 @RestController
 @Slf4j
 @RequestMapping("/adoption")
+@Api(value = "/adoption",
+        tags = "Adoptions")
 public class AdoptionController {
     @Autowired
     private final AdoptionService adoptionService;
@@ -46,9 +50,9 @@ public class AdoptionController {
     }
 
     @GetMapping("/list")
-    public CollectionModel<Adoption> retrieveAdoptions(){
+    public CollectionModel<Adoption> retrieveAdoptions() {
         List<Adoption> adoptions = adoptionService.retrieveAdoptions();
-        for(final Adoption adoption : adoptions) {
+        for (final Adoption adoption : adoptions) {
             Link selfLink = linkTo(methodOn(AdoptionController.class).getAdoption(adoption.getId())).withSelfRel();
             adoption.add(selfLink);
             Link deleteLink = linkTo(methodOn(AdoptionController.class).deleteAdoption(adoption.getId())).withRel("deleteAdoption");
@@ -60,7 +64,7 @@ public class AdoptionController {
     }
 
     @GetMapping("/data/{animal}/{center}")
-    public Adoption findByAnimalAndCenter(@PathVariable String animal, @PathVariable String center){
+    public Adoption findByAnimalAndCenter(@PathVariable String animal, @PathVariable String center) {
         Adoption adoption = adoptionService.findByAnimalAndCenter(animal, center);
 
         Link selfLink = linkTo(methodOn(AdoptionController.class).getAdoption(adoption.getId())).withSelfRel();
@@ -69,7 +73,8 @@ public class AdoptionController {
     }
 
     @GetMapping("/{adoptionId}")
-    public Adoption getAdoption(@PathVariable Long adoptionId){
+    @CircuitBreaker(name="discountById", fallbackMethod = "getAdoptionFallback")
+    public Adoption getAdoption(@PathVariable Long adoptionId) {
         Adoption adoption = adoptionService.findId(adoptionId);
 
         Discount discount = discountServiceProxy.findDiscount();
@@ -80,8 +85,13 @@ public class AdoptionController {
     }
 
     @DeleteMapping("/delete/{id}")
-    public Adoption deleteAdoption(@PathVariable Long id){
-       Adoption adoption = adoptionService.delete(id);
-       return adoption;
+    public Adoption deleteAdoption(@PathVariable Long id) {
+        Adoption adoption = adoptionService.delete(id);
+        return adoption;
+    }
+
+    private Adoption getAdoptionFallback(Long adoptionId, Throwable throwable) {
+        Adoption adoption = adoptionService.findId(adoptionId);
+        return adoption;
     }
 }
